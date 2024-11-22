@@ -1,0 +1,57 @@
+name: RustDesk RDP on Windows - CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build Docker image for RustDesk RDP
+      run: |
+        docker build -t rustdesk-rdp .
+
+    - name: Push Docker image to GitHub Container Registry
+      run: |
+        docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
+        docker tag rustdesk-rdp ghcr.io/${{ github.repository }}:latest
+        docker push ghcr.io/${{ github.repository }}:latest
+
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup RustDesk Windows installation
+      run: |
+        # Command to install or run RustDesk on Windows
+        curl -L https://github.com/rustdesk/rustdesk/releases/latest/download/rustdesk-installer.exe -o rustdesk-installer.exe
+        start /wait rustdesk-installer.exe
+
+    - name: Start RustDesk and connect to RDP server
+      run: |
+        # Command to start RustDesk as a service and configure RDP settings
+        Start-Process "C:\Program Files\RustDesk\rustdesk.exe" -ArgumentList "--server 192.168.1.100 --port 3389"
+
+  cleanup:
+    runs-on: windows-latest
+
+    steps:
+    - name: Remove RustDesk installation
+      run: |
+        Remove-Item "C:\Program Files\RustDesk" -Recurse -Force
+        Stop-Process -Name rustdesk -Force
